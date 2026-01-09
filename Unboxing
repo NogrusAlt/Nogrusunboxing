@@ -1,20 +1,20 @@
 --[[
     NOGRUS HUB - UNBOXING SIMULATOR
-    VERSION: 1.46 (Auto-Hide UI & Panic Button)
+    VERSION: 1.0 (Public Release)
 ]]
 
--- 1. CLEANUP OLD GUIS
+-- 1. CLEANUP PREVIOUS INSTANCES
 pcall(function() game.CoreGui:FindFirstChild("NogrusHub_Toggle"):Destroy() end)
 pcall(function() game.CoreGui:FindFirstChild("NogrusHub_Stop"):Destroy() end)
 
--- 2. TOGGLE BUTTON (PADRÃO)
+-- 2. TOGGLE UI BUTTON
 local ToggleGui = Instance.new("ScreenGui")
 ToggleGui.Name = "NogrusHub_Toggle"
 ToggleGui.Parent = game:GetService("CoreGui")
 
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Parent = ToggleGui
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 ToggleBtn.Position = UDim2.new(0.5, -50, 0, 5)
 ToggleBtn.Size = UDim2.new(0, 100, 0, 30)
 ToggleBtn.Font = Enum.Font.GothamBold
@@ -25,22 +25,22 @@ ToggleBtn.AutoButtonColor = true
 Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
 Instance.new("UIStroke", ToggleBtn).Color = Color3.fromRGB(60, 60, 60)
 
--- 3. STOP FARM BUTTON (NOVO)
+-- 3. PANIC STOP BUTTON
 local StopGui = Instance.new("ScreenGui")
 StopGui.Name = "NogrusHub_Stop"
 StopGui.Parent = game:GetService("CoreGui")
 
 local StopBtn = Instance.new("TextButton")
 StopBtn.Parent = StopGui
-StopBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40) -- Vermelho
-StopBtn.Position = UDim2.new(0.5, -75, 0.85, 0) -- Parte inferior central
+StopBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+StopBtn.Position = UDim2.new(0.5, -75, 0.85, 0)
 StopBtn.Size = UDim2.new(0, 150, 0, 50)
 StopBtn.Font = Enum.Font.GothamBlack
 StopBtn.Text = "STOP FARM (X)"
 StopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 StopBtn.TextSize = 18
 StopBtn.AutoButtonColor = true
-StopBtn.Visible = false -- Começa escondido
+StopBtn.Visible = false
 Instance.new("UICorner", StopBtn).CornerRadius = UDim.new(0, 8)
 Instance.new("UIStroke", StopBtn).Color = Color3.fromRGB(255, 255, 255)
 Instance.new("UIStroke", StopBtn).Thickness = 2
@@ -48,7 +48,6 @@ Instance.new("UIStroke", StopBtn).Thickness = 2
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
 
--- Função para Alternar UI (Simula Ctrl Esquerdo)
 local function ToggleFluentUI()
     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
     task.wait()
@@ -58,7 +57,7 @@ end
 ToggleBtn.MouseButton1Click:Connect(ToggleFluentUI)
 
 -- ============================================================================
--- MAIN SCRIPT
+-- MAIN SCRIPT LOADING
 -- ============================================================================
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -70,7 +69,6 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
-local GuiService = game:GetService("GuiService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
@@ -83,7 +81,7 @@ local ReplicaModule = require(ReplicatedStorage.Modules.Replica)
 local ItemDataModule = require(ReplicatedStorage.Shared.ItemData)
 local GameItemsModule = require(ReplicatedStorage.Shared.GameData.Items)
 
--- CONFIGS
+-- CONFIG VARIABLES
 getgenv().FarmEnabled = false
 getgenv().AutoEquipEnabled = false
 getgenv().AutoEquipPets = false
@@ -98,14 +96,14 @@ getgenv().FarmMode = "AURA"
 getgenv().FarmLock = false 
 getgenv().FarmCenter = nil 
 
--- OFFICIAL RARITY LIST
+-- RARITY TABLES
 local OfficialRarities = {"Common", "Rare", "Epic", "Legendary", "Godly", "Mythic", "Ethereal", "Celestial"}
 local RarityMap = {["Common"]=1, ["Rare"]=2, ["Epic"]=3, ["Legendary"]=4, ["Godly"]=5, ["Mythic"]=6, ["Ethereal"]=7, ["Celestial"]=8}
 
 getgenv().SellConfig = {}
 for _, r in pairs(OfficialRarities) do getgenv().SellConfig[RarityMap[r]] = false end
 
--- CONFIGS WEBHOOK
+-- WEBHOOK CONFIGS
 getgenv().WebhookUrl = ""
 getgenv().WebhookEnabled = false
 getgenv().WebhookPing = false
@@ -118,10 +116,10 @@ local AlvoAtual = nil
 local KnownHats = {} 
 local KnownPets = {}
 
--- UI WINDOW
+-- UI CONSTRUCTION
 local Window = Fluent:CreateWindow({
     Title = "Nogrus Hub",
-    SubTitle = "v1.46",
+    SubTitle = "v1.0",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -131,7 +129,7 @@ local Window = Fluent:CreateWindow({
 
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "home" }),
-    Items = Window:AddTab({ Title = "Items", Icon = "backpack" }),
+    Items = Window:AddTab({ Title = "Inventory", Icon = "backpack" }),
     Webhook = Window:AddTab({ Title = "Webhook", Icon = "globe" }),
     Misc = Window:AddTab({ Title = "Misc", Icon = "component" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
@@ -140,58 +138,46 @@ local Tabs = {
 local Options = Fluent.Options
 
 -- ============================================================================
--- MAIN TAB (FARM)
+-- MAIN TAB
 -- ============================================================================
 
-local FarmToggle = Tabs.Main:AddToggle("FarmEnabled", {Title = "Auto Farm (Beta)", Default = false })
+local FarmToggle = Tabs.Main:AddToggle("FarmEnabled", {
+    Title = "Auto Farm [BETA]", 
+    Description = "Automatically farms nearest boxes.",
+    Default = false 
+})
 
--- [LÓGICA DO BOTÃO DE PARADA E KEYBIND]
+-- AUTO-HIDE UI & PANIC BUTTON LOGIC
 FarmToggle:OnChanged(function()
     local val = Options.FarmEnabled.Value
     getgenv().FarmEnabled = val
     
     if val then
-        -- Farm ATIVADO: Esconde UI, Mostra Botão Stop
         AlvoAtual = nil
         Mouse.TargetFilter = nil
-        
-        -- Fecha o Fluent
-        ToggleFluentUI() 
-        
-        -- Mostra botão de parar
+        ToggleFluentUI() -- Hide Menu
         StopBtn.Visible = true
-        ToggleBtn.Visible = false -- Esconde o botão toggle normal pra não atrapalhar
+        ToggleBtn.Visible = false
     else
-        -- Farm DESATIVADO: Restaura tudo
         StopBtn.Visible = false
         ToggleBtn.Visible = true
-        
-        -- Abre o Fluent de volta
-        ToggleFluentUI()
-        
-        -- Destrava câmera
+        ToggleFluentUI() -- Show Menu
         if LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson then
             LocalPlayer.CameraMode = Enum.CameraMode.Classic
         end
     end
 end)
 
--- Função do Botão "STOP FARM"
-StopBtn.MouseButton1Click:Connect(function()
-    Options.FarmEnabled:SetValue(false) -- Isso dispara o OnChanged acima
-end)
+StopBtn.MouseButton1Click:Connect(function() Options.FarmEnabled:SetValue(false) end)
 
--- Tecla de Atalho (X) para Parar
 UserInputService.InputBegan:Connect(function(input, processed)
     if not processed and input.KeyCode == Enum.KeyCode.X then
-        if getgenv().FarmEnabled then
-            Options.FarmEnabled:SetValue(false)
-        end
+        if getgenv().FarmEnabled then Options.FarmEnabled:SetValue(false) end
     end
 end)
 
 Tabs.Main:AddDropdown("FarmMode", {
-    Title = "Attack Mode",
+    Title = "Targeting Strategy",
     Values = {"AURA", "SQUARE"},
     Multi = false,
     Default = 1,
@@ -204,68 +190,66 @@ Tabs.Main:AddDropdown("FarmMode", {
 })
 
 Tabs.Main:AddToggle("LockSquare", {
-    Title = "Lock Position (Square)",
-    Description = "ON: Fix Area | OFF: Follow Player",
+    Title = "Anchor Position",
+    Description = "Locks character to current area.",
     Default = false,
     Callback = function(Value)
         getgenv().FarmLock = Value
         if Value then
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 getgenv().FarmCenter = LocalPlayer.Character.HumanoidRootPart.Position
-                Fluent:Notify({Title = "Locked", Content = "Farm position set.", Duration = 3})
+                Fluent:Notify({Title = "Anchor Active", Content = "Position locked.", Duration = 3})
             end
         else
             getgenv().FarmCenter = nil
-            Fluent:Notify({Title = "Unlocked", Content = "Following player.", Duration = 3})
+            Fluent:Notify({Title = "Anchor Disabled", Content = "Following player.", Duration = 3})
         end
     end
 })
 
 Tabs.Main:AddSlider("FarmRadius", {
-    Title = "Farm Radius",
+    Title = "Search Radius",
     Default = 60, Min = 10, Max = 200, Rounding = 1,
     Callback = function(v) getgenv().FarmRadius = v end
 })
 
-Tabs.Main:AddToggle("ShowVisual", {Title = "Show Visuals", Default = true, Callback = function(v) getgenv().ShowVisual = v end})
+Tabs.Main:AddToggle("ShowVisual", {Title = "Draw Radius ESP", Default = true, Callback = function(v) getgenv().ShowVisual = v end})
 
 Tabs.Main:AddToggle("ForceFirstPerson", {
     Title = "Force First Person", 
-    Description = "Locks camera to improve aim accuracy.",
+    Description = "Increases accuracy on mobile.",
     Default = false, 
     Callback = function(v) 
         getgenv().ForceFirstPerson = v 
-        if not v then
-            LocalPlayer.CameraMode = Enum.CameraMode.Classic
-        end
+        if not v then LocalPlayer.CameraMode = Enum.CameraMode.Classic end
     end
 })
 
 Tabs.Main:AddToggle("AnimKiller", {
-    Title = "Fast Kill (Boxes)", 
-    Description = "Removes box/gift animations",
+    Title = "Remove Box Effects", 
+    Description = "Disables hit/open animations for FPS.",
     Default = true, 
     Callback = function(v) getgenv().AnimKiller = v end
 })
 
 -- ============================================================================
--- ITEMS TAB (EQUIP ALL)
+-- ITEMS TAB
 -- ============================================================================
 
 Tabs.Items:AddToggle("AutoEquipEnabled", {
-    Title = "Equip All Best Hats", 
+    Title = "Auto Equip Best Hats", 
     Default = false, 
     Callback = function(v) getgenv().AutoEquipEnabled = v end
 })
 
 Tabs.Items:AddToggle("AutoEquipPets", {
-    Title = "Equip All Best Pets", 
+    Title = "Auto Equip Best Pets", 
     Default = false, 
     Callback = function(v) getgenv().AutoEquipPets = v end
 })
 
 -- ============================================================================
--- WEBHOOK TAB (SEPARATED FILTERS)
+-- WEBHOOK TAB
 -- ============================================================================
 
 Tabs.Webhook:AddInput("WebhookUrl", {
@@ -276,7 +260,7 @@ Tabs.Webhook:AddInput("WebhookUrl", {
 })
 
 Tabs.Webhook:AddToggle("WebhookEnabled", {
-    Title = "Enable Global Notifications",
+    Title = "Enable Notifications",
     Default = false,
     Callback = function(Value)
         getgenv().WebhookEnabled = Value
@@ -284,16 +268,10 @@ Tabs.Webhook:AddToggle("WebhookEnabled", {
              pcall(function()
                 local PlayerReplica = nil
                 for _, rep in pairs(ReplicaModule.GetReplicasByClass("PlayerData")) do if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end end
-                
-                if PlayerReplica and PlayerReplica.Data.Hats then
-                    for id, _ in pairs(PlayerReplica.Data.Hats) do KnownHats[id] = true end
-                end
-                
-                if PlayerReplica and PlayerReplica.Data.Pets then
-                    for id, _ in pairs(PlayerReplica.Data.Pets) do KnownPets[id] = true end
-                end
+                if PlayerReplica and PlayerReplica.Data.Hats then for id, _ in pairs(PlayerReplica.Data.Hats) do KnownHats[id] = true end end
+                if PlayerReplica and PlayerReplica.Data.Pets then for id, _ in pairs(PlayerReplica.Data.Pets) do KnownPets[id] = true end end
             end)
-            Fluent:Notify({Title = "Webhook", Content = "Monitoring drops...", Duration = 3})
+            Fluent:Notify({Title = "Webhook", Content = "Monitoring started...", Duration = 3})
         end
     end
 })
@@ -304,43 +282,25 @@ Tabs.Webhook:AddToggle("WebhookPing", {
     Callback = function(Value) getgenv().WebhookPing = Value end
 })
 
--- SEÇÃO DE CHAPÉUS
-Tabs.Webhook:AddParagraph({Title = "🎩 Hat Configuration", Content = "Filter settings for Hats only."})
-
+Tabs.Webhook:AddParagraph({Title = "🎩 Hat Configuration", Content = "Filter settings for Hats."})
 Tabs.Webhook:AddToggle("WebhookHats", {Title = "Notify Hats", Default = true, Callback = function(v) getgenv().WebhookHats = v end})
-
 local HatRarityDropdown = Tabs.Webhook:AddDropdown("HatRarities", {
     Title = "Hat Rarity Filter",
     Values = OfficialRarities,
     Multi = true,
     Default = {"Godly", "Mythic", "Ethereal", "Celestial"},
 })
+HatRarityDropdown:OnChanged(function(Value) getgenv().WebhookHatRarities = {}; for key, val in pairs(Value) do if val then getgenv().WebhookHatRarities[key] = true end end end)
 
-HatRarityDropdown:OnChanged(function(Value)
-    getgenv().WebhookHatRarities = {}
-    for key, val in pairs(Value) do
-        if val then getgenv().WebhookHatRarities[key] = true end
-    end
-end)
-
--- SEÇÃO DE PETS
-Tabs.Webhook:AddParagraph({Title = "🐾 Pet Configuration", Content = "Filter settings for Pets only."})
-
+Tabs.Webhook:AddParagraph({Title = "🐾 Pet Configuration", Content = "Filter settings for Pets."})
 Tabs.Webhook:AddToggle("WebhookPets", {Title = "Notify Pets", Default = true, Callback = function(v) getgenv().WebhookPets = v end})
-
 local PetRarityDropdown = Tabs.Webhook:AddDropdown("PetRarities", {
     Title = "Pet Rarity Filter",
     Values = OfficialRarities,
     Multi = true,
     Default = {"Godly", "Mythic", "Ethereal", "Celestial"},
 })
-
-PetRarityDropdown:OnChanged(function(Value)
-    getgenv().WebhookPetRarities = {}
-    for key, val in pairs(Value) do
-        if val then getgenv().WebhookPetRarities[key] = true end
-    end
-end)
+PetRarityDropdown:OnChanged(function(Value) getgenv().WebhookPetRarities = {}; for key, val in pairs(Value) do if val then getgenv().WebhookPetRarities[key] = true end end end)
 
 Tabs.Webhook:AddButton({
     Title = "Test Webhook",
@@ -350,12 +310,7 @@ Tabs.Webhook:AddButton({
         else
             local request = http_request or request or HttpPost or syn.request
             if request then
-                request({
-                    Url = getgenv().WebhookUrl,
-                    Body = HttpService:JSONEncode({["content"] = "Webhook Test - Nogrus Hub 📦"}),
-                    Method = "POST",
-                    Headers = {["content-type"] = "application/json"}
-                })
+                request({Url = getgenv().WebhookUrl, Body = HttpService:JSONEncode({["content"] = "Webhook Test - Nogrus Hub 📦"}), Method = "POST", Headers = {["content-type"] = "application/json"}})
                 Fluent:Notify({Title = "Success", Content = "Test sent.", Duration = 3})
             end
         end
@@ -366,27 +321,24 @@ Tabs.Webhook:AddButton({
 -- MISC TAB
 -- ============================================================================
 
-Tabs.Misc:AddToggle("AutoSellEnabled", {Title = "Auto Sell", Default = false, Callback = function(v) getgenv().AutoSellEnabled = v end})
+Tabs.Misc:AddToggle("AutoSellEnabled", {Title = "Auto Sell Rarity", Default = false, Callback = function(v) getgenv().AutoSellEnabled = v end})
 
 local SellDropdown = Tabs.Misc:AddDropdown("SellConfig", { 
-    Title = "Sell Rarities", 
+    Title = "Select Rarities to Sell", 
     Values = OfficialRarities, 
     Multi = true, 
     Default = {} 
 })
-
 SellDropdown:OnChanged(function(Value)
     for _, id in pairs(RarityMap) do getgenv().SellConfig[id] = false end
-    for key, val in pairs(Value) do 
-        if val and RarityMap[key] then getgenv().SellConfig[RarityMap[key]] = true end
-    end
+    for key, val in pairs(Value) do if val and RarityMap[key] then getgenv().SellConfig[RarityMap[key]] = true end end
 end)
 
-Tabs.Misc:AddToggle("QuestEnabled", {Title = "Auto Quests", Default = false, Callback = function(v) getgenv().QuestEnabled = v end})
+Tabs.Misc:AddToggle("QuestEnabled", {Title = "Auto Claim Quests", Default = false, Callback = function(v) getgenv().QuestEnabled = v end})
 Tabs.Misc:AddToggle("AntiAFKEnabled", {Title = "Anti-AFK", Default = true, Callback = function(v) getgenv().AntiAFKEnabled = v end})
 
 -- ============================================================================
--- FARM LOGIC (V1.46)
+-- LOGIC
 -- ============================================================================
 
 local VisualPart = Instance.new("Part"); VisualPart.Name = "NogrusFarmZone"; VisualPart.Shape = Enum.PartType.Block; VisualPart.Material = Enum.Material.Neon; VisualPart.Color = Color3.fromRGB(255, 50, 50); VisualPart.Transparency = 1; VisualPart.Anchored = true; VisualPart.CanCollide = false; pcall(function() VisualPart.Parent = Workspace end)
@@ -395,36 +347,17 @@ RunService.RenderStepped:Connect(function()
     pcall(function()
         if not getgenv().ShowVisual then VisualPart.Transparency = 1 return end
         if getgenv().FarmMode == "AURA" then VisualPart.Transparency = 1 return end 
-        
-        local CenterPos = nil
-        local Color = Color3.fromRGB(0, 255, 150)
-
-        if getgenv().FarmLock then
-            CenterPos = getgenv().FarmCenter
-            Color = Color3.fromRGB(255, 50, 50)
-        else
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                CenterPos = LocalPlayer.Character.HumanoidRootPart.Position
-            end
-        end
-        
-        if CenterPos then 
-            VisualPart.Transparency = 0.85; VisualPart.Color = Color
-            VisualPart.Position = CenterPos - Vector3.new(0, 3, 0)
-            local R = getgenv().FarmRadius or 60
-            VisualPart.Size = Vector3.new(R*2, 0.2, R*2) 
-        else VisualPart.Transparency = 1 end
+        local CenterPos, Color = nil, Color3.fromRGB(0, 255, 150)
+        if getgenv().FarmLock then CenterPos = getgenv().FarmCenter; Color = Color3.fromRGB(255, 50, 50)
+        elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then CenterPos = LocalPlayer.Character.HumanoidRootPart.Position end
+        if CenterPos then VisualPart.Transparency = 0.85; VisualPart.Color = Color; VisualPart.Position = CenterPos - Vector3.new(0, 3, 0); local R = getgenv().FarmRadius or 60; VisualPart.Size = Vector3.new(R*2, 0.2, R*2) else VisualPart.Transparency = 1 end
     end)
 end)
 
--- Monitoramento de Câmera
 task.spawn(function()
-    while true do
-        task.wait()
+    while true do task.wait()
         if getgenv().FarmEnabled and getgenv().ForceFirstPerson then
-            if LocalPlayer.CameraMode ~= Enum.CameraMode.LockFirstPerson then
-                LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
-            end
+            if LocalPlayer.CameraMode ~= Enum.CameraMode.LockFirstPerson then LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson end
         end
     end
 end)
@@ -435,16 +368,11 @@ local PalavrasChave = {"Box", "Chest", "Crate", "Gift", "Present", "Coin", "Gem"
 local function EhAlvo(obj)
     if not obj or not obj:IsA("Model") or not obj:FindFirstChildWhichIsA("BasePart") then return false end
     if obj.Name == "" or obj.Name == " " then return true end
-    
-    local nl = obj.Name:lower()
-    for _, k in pairs(PalavrasChave) do if nl:match(k:lower()) then return true end end
+    local nl = obj.Name:lower(); for _, k in pairs(PalavrasChave) do if nl:match(k:lower()) then return true end end
     return false
 end
 
-local function GetCenter(model)
-    local cf, size = model:GetBoundingBox()
-    return cf.Position
-end
+local function GetCenter(model) local cf, size = model:GetBoundingBox(); return cf.Position end
 
 local function IsInArea(pos)
     if getgenv().FarmMode == "AURA" then return true end
@@ -467,15 +395,12 @@ local function BuscarTudo()
                 if p then
                     local RealPos = GetCenter(filho) 
                     if getgenv().ShowVisual then p.Color = Color3.new(1,1,1) end 
-                    
                     if IsInArea(RealPos) then
                         if getgenv().ShowVisual and getgenv().FarmMode == "SQUARE" then p.Color = Color3.fromRGB(170, 0, 255) end
                         table.insert(Candidatos, {Model = filho, Pos = RealPos, Dist = (Root.Position - RealPos).Magnitude}) 
                     end
                 end
-            elseif (filho:IsA("Folder") or filho:IsA("Model")) and filho.Name ~= "Pets" and filho.Name ~= "Lobby" then 
-                Explorar(filho, prof + 1) 
-            end 
+            elseif (filho:IsA("Folder") or filho:IsA("Model")) and filho.Name ~= "Pets" and filho.Name ~= "Lobby" then Explorar(filho, prof + 1) end 
         end 
     end
     pcall(function() for _, item in pairs(Workspace:GetChildren()) do if (item:IsA("Folder") or item:IsA("Model")) then Explorar(item, 1) end end end)
@@ -489,17 +414,10 @@ RunService.RenderStepped:Connect(function()
             if Hum and Root and Hum.Health > 0 then
                 if AlvoAtual and not AlvoAtual.Model.Parent then AlvoAtual = nil end
                 if not AlvoAtual then AlvoAtual = BuscarTudo() end
-                
                 if AlvoAtual then
                     local TargetPos = AlvoAtual.Pos
                     local Dist = (Root.Position - TargetPos).Magnitude
-                    
-                    if Dist > DISTANCIA_TOQUE then 
-                        Hum:MoveTo(TargetPos)
-                    else
-                        Hum:MoveTo(Root.Position)
-                    end
-                    
+                    if Dist > DISTANCIA_TOQUE then Hum:MoveTo(TargetPos) else Hum:MoveTo(Root.Position) end
                     Mouse.TargetFilter = LocalPlayer.Character
                     Camera.CFrame = CFrame.new(Camera.CFrame.Position, TargetPos)
                     local ViewportSize = Camera.ViewportSize
@@ -512,19 +430,13 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
--- ============================================================================
--- WEBHOOK SYSTEM (SEPARATED HATS & PETS)
--- ============================================================================
-
 local function SendWebhook(itemName, rarity, itemType)
     if getgenv().WebhookUrl == "" then return end
     local content = ""; if getgenv().WebhookPing then content = "@everyone" end
     local color = 16777215
     if rarity == "Rare" then color = 3447003 elseif rarity == "Epic" then color = 10181046 elseif rarity == "Legendary" then color = 15105570 elseif rarity == "Godly" then color = 15548997 elseif rarity == "Mythic" then color = 15844367 elseif rarity == "Ethereal" then color = 1752220 elseif rarity == "Celestial" then color = 3066993 end
-    
     local titleEmoji = (itemType == "Pet") and "🐾" or "🎩"
     local titleText = titleEmoji .. " New " .. itemType .. " Dropped!"
-    
     local request = http_request or request or HttpPost or syn.request
     if request then request({Url = getgenv().WebhookUrl, Body = HttpService:JSONEncode({["content"] = content, ["username"] = "Nogrus Hub", ["embeds"] = {{["title"] = titleText, ["description"] = "**Item:** " .. itemName .. "\n**Rarity:** " .. rarity, ["color"] = color, ["footer"] = {["text"]="Nogrus Hub"}, ["timestamp"]=os.date("!%Y-%m-%dT%H:%M:%SZ")}}}), Method = "POST", Headers = {["content-type"] = "application/json"}}) end
 end
@@ -534,43 +446,31 @@ task.spawn(function()
         if getgenv().WebhookEnabled then
             pcall(function()
                 local PlayerReplica = nil
-                for _, rep in pairs(ReplicaModule.GetReplicasByClass("PlayerData")) do 
-                    if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end 
-                end
-                
+                for _, rep in pairs(ReplicaModule.GetReplicasByClass("PlayerData")) do if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end end
                 if getgenv().WebhookHats and PlayerReplica and PlayerReplica.Data.Hats then
                     for id, hat in pairs(PlayerReplica.Data.Hats) do
                         if not KnownHats[id] then
                             KnownHats[id] = true
                             local Info = ItemDataModule.Get(hat.ItemId)
                             if Info then
-                                local RarityID = Info.Rarity or 1
-                                local RarityName = "Common"
+                                local RarityID = Info.Rarity or 1; local RarityName = "Common"
                                 for name, mapId in pairs(RarityMap) do if mapId == RarityID then RarityName = name break end end
-                                
                                 local Name = Info.DisplayName or Info.Name or "Hat"
-                                if getgenv().WebhookHatRarities[RarityName] then
-                                    SendWebhook(Name, RarityName, "Hat")
-                                end
+                                if getgenv().WebhookHatRarities[RarityName] then SendWebhook(Name, RarityName, "Hat") end
                             end
                         end
                     end
                 end
-
                 if getgenv().WebhookPets and PlayerReplica and PlayerReplica.Data.Pets then
                     for id, pet in pairs(PlayerReplica.Data.Pets) do
                         if not KnownPets[id] then
                             KnownPets[id] = true
                             local Info = ItemDataModule.Get(pet.ItemId)
                             if Info then
-                                local RarityID = Info.Rarity or 1
-                                local RarityName = "Common"
+                                local RarityID = Info.Rarity or 1; local RarityName = "Common"
                                 for name, mapId in pairs(RarityMap) do if mapId == RarityID then RarityName = name break end end
-                                
                                 local Name = Info.DisplayName or Info.Name or "Pet"
-                                if getgenv().WebhookPetRarities[RarityName] then
-                                    SendWebhook(Name, RarityName, "Pet")
-                                end
+                                if getgenv().WebhookPetRarities[RarityName] then SendWebhook(Name, RarityName, "Pet") end
                             end
                         end
                     end
@@ -580,30 +480,16 @@ task.spawn(function()
     end
 end)
 
--- ============================================================================
--- AUTO EQUIP (FULL LIST SEND - HATS & PETS)
--- ============================================================================
-
 task.spawn(function()
     while true do task.wait(5)
         if getgenv().AutoEquipEnabled then
             pcall(function()
-                local PlayerReplica = nil
-                for _, rep in pairs(ReplicaModule.GetReplicasByClass("PlayerData")) do if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end end
+                local PlayerReplica = nil; for _, rep in pairs(ReplicaModule.GetReplicasByClass("PlayerData")) do if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end end
                 if PlayerReplica and PlayerReplica.Data.Hats then
                     local AllHats = {}
-                    for id, hat in pairs(PlayerReplica.Data.Hats) do
-                        local Info = ItemDataModule.Get(hat.ItemId)
-                        if Info then
-                            local Val = (GameItemsModule.GetDamage(hat.Level, Info.Rarity) or 0)
-                            table.insert(AllHats, {Id = id, Val = Val})
-                        end
-                    end
+                    for id, hat in pairs(PlayerReplica.Data.Hats) do local Info = ItemDataModule.Get(hat.ItemId); if Info then table.insert(AllHats, {Id = id, Val = (GameItemsModule.GetDamage(hat.Level, Info.Rarity) or 0)}) end end
                     table.sort(AllHats, function(a,b) return a.Val > b.Val end)
-                    
-                    local BestIds = {}
-                    for i=1, #AllHats do table.insert(BestIds, AllHats[i].Id) end
-                    
+                    local BestIds = {}; for i=1, #AllHats do table.insert(BestIds, AllHats[i].Id) end
                     if #BestIds > 0 then RE.EquipBest:FireServer("Hat", BestIds, {}) end
                 end
             end)
@@ -615,22 +501,12 @@ task.spawn(function()
     while true do task.wait(5)
         if getgenv().AutoEquipPets then
             pcall(function()
-                local PlayerReplica = nil
-                for _, rep in pairs(ReplicaModule.GetReplicasByClass("PlayerData")) do if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end end
+                local PlayerReplica = nil; for _, rep in pairs(ReplicaModule.GetReplicasByClass("PlayerData")) do if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end end
                 if PlayerReplica and PlayerReplica.Data.Pets then
                     local AllPets = {}
-                    for id, pet in pairs(PlayerReplica.Data.Pets) do
-                        local Info = ItemDataModule.Get(pet.ItemId)
-                        if Info then
-                            local Val = (GameItemsModule.GetDamage(pet.Level, Info.Rarity) or 0)
-                            table.insert(AllPets, {Id = id, Val = Val})
-                        end
-                    end
+                    for id, pet in pairs(PlayerReplica.Data.Pets) do local Info = ItemDataModule.Get(pet.ItemId); if Info then table.insert(AllPets, {Id = id, Val = (GameItemsModule.GetDamage(pet.Level, Info.Rarity) or 0)}) end end
                     table.sort(AllPets, function(a,b) return a.Val > b.Val end)
-                    
-                    local BestIds = {}
-                    for i=1, #AllPets do table.insert(BestIds, AllPets[i].Id) end
-                    
+                    local BestIds = {}; for i=1, #AllPets do table.insert(BestIds, AllPets[i].Id) end
                     if #BestIds > 0 then RE.EquipBest:FireServer("Pet", BestIds, {}) end
                 end
             end)
@@ -645,10 +521,7 @@ task.spawn(function()
                 local PlayerReplica = nil; for _, rep in pairs(ReplicaModule.GetReplicasByClass("PlayerData")) do if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end end
                 if PlayerReplica and PlayerReplica.Data.Hats then
                     local ToSell = {}
-                    for id, hat in pairs(PlayerReplica.Data.Hats) do
-                        local Info = ItemDataModule.Get(hat.ItemId)
-                        if Info and not hat.IsEquipped and not hat.Locked and getgenv().SellConfig[Info.Rarity] then table.insert(ToSell, tostring(id)) end
-                    end
+                    for id, hat in pairs(PlayerReplica.Data.Hats) do local Info = ItemDataModule.Get(hat.ItemId); if Info and not hat.IsEquipped and not hat.Locked and getgenv().SellConfig[Info.Rarity] then table.insert(ToSell, tostring(id)) end end
                     if #ToSell > 0 and RF:FindFirstChild("SellItems") then RF.SellItems:InvokeServer(ToSell, "Hats") end
                 end
             end)
@@ -672,18 +545,9 @@ end)
 
 task.spawn(function() 
     pcall(function() 
-        local function Kill(self) 
-            if getgenv().AnimKiller and self.Model then 
-                self.Model:Destroy() 
-            end 
-        end
-        local BoxAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Box")
-        local GiftAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Gift")
-        local GhostAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Ghost")
-        
-        if BoxAnim then require(BoxAnim).Open = Kill end
-        if GiftAnim then require(GiftAnim).Open = Kill end
-        if GhostAnim then require(GhostAnim).Open = Kill end
+        local function Kill(self) if getgenv().AnimKiller and self.Model then self.Model:Destroy() end end
+        local BoxAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Box"); local GiftAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Gift"); local GhostAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Ghost")
+        if BoxAnim then require(BoxAnim).Open = Kill end; if GiftAnim then require(GiftAnim).Open = Kill end; if GhostAnim then require(GhostAnim).Open = Kill end
     end) 
 end)
 
