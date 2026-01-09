@@ -1,6 +1,6 @@
 --[[
     NOGRUS HUB - UNBOXING SIMULATOR
-    VERSION: 1.0 (Public Release)
+    VERSION: 1.34 (Independent Rarity Filters)
 ]]
 
 -- 1. TOGGLE BUTTON
@@ -60,7 +60,7 @@ getgenv().AutoEquipEnabled = false
 getgenv().AutoEquipPets = false
 getgenv().AutoSellEnabled = false
 getgenv().QuestEnabled = false
-getgenv().AnimKiller = true
+getgenv().AnimKiller = true -- Fast Kill (Boxes Only)
 getgenv().ShowVisual = true
 
 getgenv().FarmRadius = 60
@@ -79,15 +79,21 @@ for _, r in pairs(OfficialRarities) do getgenv().SellConfig[RarityMap[r]] = fals
 getgenv().WebhookUrl = ""
 getgenv().WebhookEnabled = false
 getgenv().WebhookPing = false
-getgenv().WebhookRarities = {} 
+
+-- CONFIGS SEPARADAS [NOVO]
+getgenv().WebhookHats = true
+getgenv().WebhookPets = true
+getgenv().WebhookHatRarities = {} 
+getgenv().WebhookPetRarities = {}
 
 local AlvoAtual = nil
-local KnownItems = {} 
+local KnownHats = {} 
+local KnownPets = {}
 
 -- UI WINDOW
 local Window = Fluent:CreateWindow({
     Title = "Nogrus Hub",
-    SubTitle = "v1.0",
+    SubTitle = "v1.34",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -156,7 +162,13 @@ Tabs.Main:AddSlider("FarmRadius", {
 })
 
 Tabs.Main:AddToggle("ShowVisual", {Title = "Show Visuals", Default = true, Callback = function(v) getgenv().ShowVisual = v end})
-Tabs.Main:AddToggle("AnimKiller", {Title = "Fast Kill (Remove Anim)", Default = true, Callback = function(v) getgenv().AnimKiller = v end})
+
+Tabs.Main:AddToggle("AnimKiller", {
+    Title = "Fast Kill (Boxes)", 
+    Description = "Removes box/gift animations",
+    Default = true, 
+    Callback = function(v) getgenv().AnimKiller = v end
+})
 
 -- ============================================================================
 -- ITEMS TAB (EQUIP ALL)
@@ -175,7 +187,7 @@ Tabs.Items:AddToggle("AutoEquipPets", {
 })
 
 -- ============================================================================
--- WEBHOOK TAB
+-- WEBHOOK TAB (SEPARATED FILTERS)
 -- ============================================================================
 
 Tabs.Webhook:AddInput("WebhookUrl", {
@@ -186,7 +198,7 @@ Tabs.Webhook:AddInput("WebhookUrl", {
 })
 
 Tabs.Webhook:AddToggle("WebhookEnabled", {
-    Title = "Enable Notifications",
+    Title = "Enable Global Notifications",
     Default = false,
     Callback = function(Value)
         getgenv().WebhookEnabled = Value
@@ -194,8 +206,13 @@ Tabs.Webhook:AddToggle("WebhookEnabled", {
              pcall(function()
                 local PlayerReplica = nil
                 for _, rep in pairs(ReplicaModule.GetReplicasByClass("PlayerData")) do if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end end
+                
                 if PlayerReplica and PlayerReplica.Data.Hats then
-                    for id, _ in pairs(PlayerReplica.Data.Hats) do KnownItems[id] = true end
+                    for id, _ in pairs(PlayerReplica.Data.Hats) do KnownHats[id] = true end
+                end
+                
+                if PlayerReplica and PlayerReplica.Data.Pets then
+                    for id, _ in pairs(PlayerReplica.Data.Pets) do KnownPets[id] = true end
                 end
             end)
             Fluent:Notify({Title = "Webhook", Content = "Monitoring drops...", Duration = 3})
@@ -209,17 +226,41 @@ Tabs.Webhook:AddToggle("WebhookPing", {
     Callback = function(Value) getgenv().WebhookPing = Value end
 })
 
-local WhDropdown = Tabs.Webhook:AddDropdown("WebhookRarities", {
-    Title = "Rarity Filter",
+-- SEÇÃO DE CHAPÉUS
+Tabs.Webhook:AddParagraph({Title = "🎩 Hat Configuration", Content = "Filter settings for Hats only."})
+
+Tabs.Webhook:AddToggle("WebhookHats", {Title = "Notify Hats", Default = true, Callback = function(v) getgenv().WebhookHats = v end})
+
+local HatRarityDropdown = Tabs.Webhook:AddDropdown("HatRarities", {
+    Title = "Hat Rarity Filter",
     Values = OfficialRarities,
     Multi = true,
     Default = {"Godly", "Mythic", "Ethereal", "Celestial"},
 })
 
-WhDropdown:OnChanged(function(Value)
-    getgenv().WebhookRarities = {}
+HatRarityDropdown:OnChanged(function(Value)
+    getgenv().WebhookHatRarities = {}
     for key, val in pairs(Value) do
-        if val then getgenv().WebhookRarities[key] = true end
+        if val then getgenv().WebhookHatRarities[key] = true end
+    end
+end)
+
+-- SEÇÃO DE PETS
+Tabs.Webhook:AddParagraph({Title = "🐾 Pet Configuration", Content = "Filter settings for Pets only."})
+
+Tabs.Webhook:AddToggle("WebhookPets", {Title = "Notify Pets", Default = true, Callback = function(v) getgenv().WebhookPets = v end})
+
+local PetRarityDropdown = Tabs.Webhook:AddDropdown("PetRarities", {
+    Title = "Pet Rarity Filter",
+    Values = OfficialRarities,
+    Multi = true,
+    Default = {"Godly", "Mythic", "Ethereal", "Celestial"},
+})
+
+PetRarityDropdown:OnChanged(function(Value)
+    getgenv().WebhookPetRarities = {}
+    for key, val in pairs(Value) do
+        if val then getgenv().WebhookPetRarities[key] = true end
     end
 end)
 
@@ -370,16 +411,20 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ============================================================================
--- WEBHOOK
+-- WEBHOOK SYSTEM (SEPARATED HATS & PETS)
 -- ============================================================================
 
-local function SendWebhook(itemName, rarity)
+local function SendWebhook(itemName, rarity, itemType)
     if getgenv().WebhookUrl == "" then return end
     local content = ""; if getgenv().WebhookPing then content = "@everyone" end
     local color = 16777215
     if rarity == "Rare" then color = 3447003 elseif rarity == "Epic" then color = 10181046 elseif rarity == "Legendary" then color = 15105570 elseif rarity == "Godly" then color = 15548997 elseif rarity == "Mythic" then color = 15844367 elseif rarity == "Ethereal" then color = 1752220 elseif rarity == "Celestial" then color = 3066993 end
+    
+    local titleEmoji = (itemType == "Pet") and "🐾" or "🎩"
+    local titleText = titleEmoji .. " New " .. itemType .. " Dropped!"
+    
     local request = http_request or request or HttpPost or syn.request
-    if request then request({Url = getgenv().WebhookUrl, Body = HttpService:JSONEncode({["content"] = content, ["username"] = "Nogrus Hub", ["embeds"] = {{["title"] = "📦 New Item Dropped!", ["description"] = "**Item:** " .. itemName .. "\n**Rarity:** " .. rarity, ["color"] = color, ["footer"] = {["text"]="Nogrus Hub"}, ["timestamp"]=os.date("!%Y-%m-%dT%H:%M:%SZ")}}}), Method = "POST", Headers = {["content-type"] = "application/json"}}) end
+    if request then request({Url = getgenv().WebhookUrl, Body = HttpService:JSONEncode({["content"] = content, ["username"] = "Nogrus Hub", ["embeds"] = {{["title"] = titleText, ["description"] = "**Item:** " .. itemName .. "\n**Rarity:** " .. rarity, ["color"] = color, ["footer"] = {["text"]="Nogrus Hub"}, ["timestamp"]=os.date("!%Y-%m-%dT%H:%M:%SZ")}}}), Method = "POST", Headers = {["content-type"] = "application/json"}}) end
 end
 
 task.spawn(function()
@@ -391,20 +436,42 @@ task.spawn(function()
                     if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end 
                 end
                 
-                if PlayerReplica and PlayerReplica.Data.Hats then
+                -- CHECK HATS
+                if getgenv().WebhookHats and PlayerReplica and PlayerReplica.Data.Hats then
                     for id, hat in pairs(PlayerReplica.Data.Hats) do
-                        if not KnownItems[id] then
-                            KnownItems[id] = true
+                        if not KnownHats[id] then
+                            KnownHats[id] = true
                             local Info = ItemDataModule.Get(hat.ItemId)
                             if Info then
                                 local RarityID = Info.Rarity or 1
                                 local RarityName = "Common"
-                                for name, mapId in pairs(RarityMap) do
-                                    if mapId == RarityID then RarityName = name break end
+                                for name, mapId in pairs(RarityMap) do if mapId == RarityID then RarityName = name break end end
+                                
+                                local Name = Info.DisplayName or Info.Name or "Hat"
+                                -- VERIFICA APENAS NA LISTA DE CHAPÉUS
+                                if getgenv().WebhookHatRarities[RarityName] then
+                                    SendWebhook(Name, RarityName, "Hat")
                                 end
-                                local Name = Info.DisplayName or Info.Name or "Item"
-                                if getgenv().WebhookRarities[RarityName] then
-                                    SendWebhook(Name, RarityName)
+                            end
+                        end
+                    end
+                end
+
+                -- CHECK PETS
+                if getgenv().WebhookPets and PlayerReplica and PlayerReplica.Data.Pets then
+                    for id, pet in pairs(PlayerReplica.Data.Pets) do
+                        if not KnownPets[id] then
+                            KnownPets[id] = true
+                            local Info = ItemDataModule.Get(pet.ItemId)
+                            if Info then
+                                local RarityID = Info.Rarity or 1
+                                local RarityName = "Common"
+                                for name, mapId in pairs(RarityMap) do if mapId == RarityID then RarityName = name break end end
+                                
+                                local Name = Info.DisplayName or Info.Name or "Pet"
+                                -- VERIFICA APENAS NA LISTA DE PETS
+                                if getgenv().WebhookPetRarities[RarityName] then
+                                    SendWebhook(Name, RarityName, "Pet")
                                 end
                             end
                         end
@@ -431,7 +498,6 @@ task.spawn(function()
                     for id, hat in pairs(PlayerReplica.Data.Hats) do
                         local Info = ItemDataModule.Get(hat.ItemId)
                         if Info then
-                            -- Prioridade Fixa: DANO (Melhor Opção)
                             local Val = (GameItemsModule.GetDamage(hat.Level, Info.Rarity) or 0)
                             table.insert(AllHats, {Id = id, Val = Val})
                         end
@@ -460,7 +526,6 @@ task.spawn(function()
                     for id, pet in pairs(PlayerReplica.Data.Pets) do
                         local Info = ItemDataModule.Get(pet.ItemId)
                         if Info then
-                            -- Prioridade Fixa: DANO
                             local Val = (GameItemsModule.GetDamage(pet.Level, Info.Rarity) or 0)
                             table.insert(AllPets, {Id = id, Val = Val})
                         end
@@ -509,13 +574,22 @@ task.spawn(function()
     end
 end)
 
+-- [ANIM KILLER - SAFE VERSION]
 task.spawn(function() 
     pcall(function() 
-        local function Kill(self) if getgenv().AnimKiller and self.Model then self.Model:Destroy() end end
+        local function Kill(self) 
+            if getgenv().AnimKiller and self.Model then 
+                self.Model:Destroy() 
+            end 
+        end
+        
         local BoxAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Box")
         local GiftAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Gift")
         local GhostAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Ghost")
-        if BoxAnim then require(BoxAnim).Open = Kill end; if GiftAnim then require(GiftAnim).Open = Kill end; if GhostAnim then require(GhostAnim).Open = Kill end
+        
+        if BoxAnim then require(BoxAnim).Open = Kill end
+        if GiftAnim then require(GiftAnim).Open = Kill end
+        if GhostAnim then require(GhostAnim).Open = Kill end
     end) 
 end)
 
