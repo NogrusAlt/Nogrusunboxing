@@ -1,10 +1,13 @@
 --[[
     NOGRUS HUB - UNBOXING SIMULATOR
-    VERSION: 1.34 (Independent Rarity Filters)
+    VERSION: 1.46 (Auto-Hide UI & Panic Button)
 ]]
 
--- 1. TOGGLE BUTTON
+-- 1. CLEANUP OLD GUIS
 pcall(function() game.CoreGui:FindFirstChild("NogrusHub_Toggle"):Destroy() end)
+pcall(function() game.CoreGui:FindFirstChild("NogrusHub_Stop"):Destroy() end)
+
+-- 2. TOGGLE BUTTON (PADRÃO)
 local ToggleGui = Instance.new("ScreenGui")
 ToggleGui.Name = "NogrusHub_Toggle"
 ToggleGui.Parent = game:GetService("CoreGui")
@@ -22,12 +25,37 @@ ToggleBtn.AutoButtonColor = true
 Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
 Instance.new("UIStroke", ToggleBtn).Color = Color3.fromRGB(60, 60, 60)
 
+-- 3. STOP FARM BUTTON (NOVO)
+local StopGui = Instance.new("ScreenGui")
+StopGui.Name = "NogrusHub_Stop"
+StopGui.Parent = game:GetService("CoreGui")
+
+local StopBtn = Instance.new("TextButton")
+StopBtn.Parent = StopGui
+StopBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40) -- Vermelho
+StopBtn.Position = UDim2.new(0.5, -75, 0.85, 0) -- Parte inferior central
+StopBtn.Size = UDim2.new(0, 150, 0, 50)
+StopBtn.Font = Enum.Font.GothamBlack
+StopBtn.Text = "STOP FARM (X)"
+StopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+StopBtn.TextSize = 18
+StopBtn.AutoButtonColor = true
+StopBtn.Visible = false -- Começa escondido
+Instance.new("UICorner", StopBtn).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", StopBtn).Color = Color3.fromRGB(255, 255, 255)
+Instance.new("UIStroke", StopBtn).Thickness = 2
+
 local VirtualInputManager = game:GetService("VirtualInputManager")
-ToggleBtn.MouseButton1Click:Connect(function()
+local UserInputService = game:GetService("UserInputService")
+
+-- Função para Alternar UI (Simula Ctrl Esquerdo)
+local function ToggleFluentUI()
     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
     task.wait()
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game)
-end)
+end
+
+ToggleBtn.MouseButton1Click:Connect(ToggleFluentUI)
 
 -- ============================================================================
 -- MAIN SCRIPT
@@ -42,6 +70,7 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
+local GuiService = game:GetService("GuiService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
@@ -60,8 +89,9 @@ getgenv().AutoEquipEnabled = false
 getgenv().AutoEquipPets = false
 getgenv().AutoSellEnabled = false
 getgenv().QuestEnabled = false
-getgenv().AnimKiller = true -- Fast Kill (Boxes Only)
+getgenv().AnimKiller = true
 getgenv().ShowVisual = true
+getgenv().ForceFirstPerson = false
 
 getgenv().FarmRadius = 60
 getgenv().FarmMode = "AURA" 
@@ -79,8 +109,6 @@ for _, r in pairs(OfficialRarities) do getgenv().SellConfig[RarityMap[r]] = fals
 getgenv().WebhookUrl = ""
 getgenv().WebhookEnabled = false
 getgenv().WebhookPing = false
-
--- CONFIGS SEPARADAS [NOVO]
 getgenv().WebhookHats = true
 getgenv().WebhookPets = true
 getgenv().WebhookHatRarities = {} 
@@ -93,7 +121,7 @@ local KnownPets = {}
 -- UI WINDOW
 local Window = Fluent:CreateWindow({
     Title = "Nogrus Hub",
-    SubTitle = "v1.34",
+    SubTitle = "v1.46",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true, 
@@ -116,11 +144,49 @@ local Options = Fluent.Options
 -- ============================================================================
 
 local FarmToggle = Tabs.Main:AddToggle("FarmEnabled", {Title = "Auto Farm (Beta)", Default = false })
+
+-- [LÓGICA DO BOTÃO DE PARADA E KEYBIND]
 FarmToggle:OnChanged(function()
-    getgenv().FarmEnabled = Options.FarmEnabled.Value
-    if not getgenv().FarmEnabled then
+    local val = Options.FarmEnabled.Value
+    getgenv().FarmEnabled = val
+    
+    if val then
+        -- Farm ATIVADO: Esconde UI, Mostra Botão Stop
         AlvoAtual = nil
         Mouse.TargetFilter = nil
+        
+        -- Fecha o Fluent
+        ToggleFluentUI() 
+        
+        -- Mostra botão de parar
+        StopBtn.Visible = true
+        ToggleBtn.Visible = false -- Esconde o botão toggle normal pra não atrapalhar
+    else
+        -- Farm DESATIVADO: Restaura tudo
+        StopBtn.Visible = false
+        ToggleBtn.Visible = true
+        
+        -- Abre o Fluent de volta
+        ToggleFluentUI()
+        
+        -- Destrava câmera
+        if LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson then
+            LocalPlayer.CameraMode = Enum.CameraMode.Classic
+        end
+    end
+end)
+
+-- Função do Botão "STOP FARM"
+StopBtn.MouseButton1Click:Connect(function()
+    Options.FarmEnabled:SetValue(false) -- Isso dispara o OnChanged acima
+end)
+
+-- Tecla de Atalho (X) para Parar
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed and input.KeyCode == Enum.KeyCode.X then
+        if getgenv().FarmEnabled then
+            Options.FarmEnabled:SetValue(false)
+        end
     end
 end)
 
@@ -162,6 +228,18 @@ Tabs.Main:AddSlider("FarmRadius", {
 })
 
 Tabs.Main:AddToggle("ShowVisual", {Title = "Show Visuals", Default = true, Callback = function(v) getgenv().ShowVisual = v end})
+
+Tabs.Main:AddToggle("ForceFirstPerson", {
+    Title = "Force First Person", 
+    Description = "Locks camera to improve aim accuracy.",
+    Default = false, 
+    Callback = function(v) 
+        getgenv().ForceFirstPerson = v 
+        if not v then
+            LocalPlayer.CameraMode = Enum.CameraMode.Classic
+        end
+    end
+})
 
 Tabs.Main:AddToggle("AnimKiller", {
     Title = "Fast Kill (Boxes)", 
@@ -308,7 +386,7 @@ Tabs.Misc:AddToggle("QuestEnabled", {Title = "Auto Quests", Default = false, Cal
 Tabs.Misc:AddToggle("AntiAFKEnabled", {Title = "Anti-AFK", Default = true, Callback = function(v) getgenv().AntiAFKEnabled = v end})
 
 -- ============================================================================
--- FARM LOGIC
+-- FARM LOGIC (V1.46)
 -- ============================================================================
 
 local VisualPart = Instance.new("Part"); VisualPart.Name = "NogrusFarmZone"; VisualPart.Shape = Enum.PartType.Block; VisualPart.Material = Enum.Material.Neon; VisualPart.Color = Color3.fromRGB(255, 50, 50); VisualPart.Transparency = 1; VisualPart.Anchored = true; VisualPart.CanCollide = false; pcall(function() VisualPart.Parent = Workspace end)
@@ -339,15 +417,33 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
-local DISTANCIA_PARADA = 7
+-- Monitoramento de Câmera
+task.spawn(function()
+    while true do
+        task.wait()
+        if getgenv().FarmEnabled and getgenv().ForceFirstPerson then
+            if LocalPlayer.CameraMode ~= Enum.CameraMode.LockFirstPerson then
+                LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+            end
+        end
+    end
+end)
+
+local DISTANCIA_TOQUE = 4 
 local PalavrasChave = {"Box", "Chest", "Crate", "Gift", "Present", "Coin", "Gem"}
 
 local function EhAlvo(obj)
-    if obj.Name == "" and obj:IsA("Model") and obj:FindFirstChildWhichIsA("BasePart") then return true end
     if not obj or not obj:IsA("Model") or not obj:FindFirstChildWhichIsA("BasePart") then return false end
+    if obj.Name == "" or obj.Name == " " then return true end
+    
     local nl = obj.Name:lower()
     for _, k in pairs(PalavrasChave) do if nl:match(k:lower()) then return true end end
     return false
+end
+
+local function GetCenter(model)
+    local cf, size = model:GetBoundingBox()
+    return cf.Position
 end
 
 local function IsInArea(pos)
@@ -369,10 +465,12 @@ local function BuscarTudo()
             if EhAlvo(filho) then 
                 local p = filho.PrimaryPart or filho:FindFirstChildWhichIsA("BasePart")
                 if p then
+                    local RealPos = GetCenter(filho) 
                     if getgenv().ShowVisual then p.Color = Color3.new(1,1,1) end 
-                    if IsInArea(p.Position) then
+                    
+                    if IsInArea(RealPos) then
                         if getgenv().ShowVisual and getgenv().FarmMode == "SQUARE" then p.Color = Color3.fromRGB(170, 0, 255) end
-                        table.insert(Candidatos, {Part = p, Dist = (Root.Position - p.Position).Magnitude}) 
+                        table.insert(Candidatos, {Model = filho, Pos = RealPos, Dist = (Root.Position - RealPos).Magnitude}) 
                     end
                 end
             elseif (filho:IsA("Folder") or filho:IsA("Model")) and filho.Name ~= "Pets" and filho.Name ~= "Lobby" then 
@@ -381,7 +479,7 @@ local function BuscarTudo()
         end 
     end
     pcall(function() for _, item in pairs(Workspace:GetChildren()) do if (item:IsA("Folder") or item:IsA("Model")) then Explorar(item, 1) end end end)
-    table.sort(Candidatos, function(a,b) return a.Dist < b.Dist end); return Candidatos[1] and Candidatos[1].Part or nil
+    table.sort(Candidatos, function(a,b) return a.Dist < b.Dist end); return Candidatos[1]
 end
 
 RunService.RenderStepped:Connect(function()
@@ -389,21 +487,25 @@ RunService.RenderStepped:Connect(function()
         if getgenv().FarmEnabled and LocalPlayer.Character then
             local Hum, Root = LocalPlayer.Character:FindFirstChild("Humanoid"), LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if Hum and Root and Hum.Health > 0 then
-                if AlvoAtual and not AlvoAtual.Parent then AlvoAtual = nil end
+                if AlvoAtual and not AlvoAtual.Model.Parent then AlvoAtual = nil end
                 if not AlvoAtual then AlvoAtual = BuscarTudo() end
+                
                 if AlvoAtual then
-                    local Dist = (Root.Position - AlvoAtual.Position).Magnitude
-                    if Dist > DISTANCIA_PARADA then 
-                        Hum:MoveTo(AlvoAtual.Position)
-                    else 
-                        Mouse.TargetFilter = LocalPlayer.Character
-                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, AlvoAtual.Position)
-                        local ScreenPos, OnScreen = Camera:WorldToViewportPoint(AlvoAtual.Position)
-                        if OnScreen then
-                            VirtualInputManager:SendMouseButtonEvent(ScreenPos.X, ScreenPos.Y, 0, true, game, 1)
-                            VirtualInputManager:SendMouseButtonEvent(ScreenPos.X, ScreenPos.Y, 0, false, game, 1)
-                        end
-                    end 
+                    local TargetPos = AlvoAtual.Pos
+                    local Dist = (Root.Position - TargetPos).Magnitude
+                    
+                    if Dist > DISTANCIA_TOQUE then 
+                        Hum:MoveTo(TargetPos)
+                    else
+                        Hum:MoveTo(Root.Position)
+                    end
+                    
+                    Mouse.TargetFilter = LocalPlayer.Character
+                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, TargetPos)
+                    local ViewportSize = Camera.ViewportSize
+                    local CenterX, CenterY = ViewportSize.X/2, ViewportSize.Y/2
+                    VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, true, game, 1)
+                    VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, false, game, 1)
                 end
             end
         else AlvoAtual = nil; Mouse.TargetFilter = nil end
@@ -436,7 +538,6 @@ task.spawn(function()
                     if rep.Tags.Player == LocalPlayer then PlayerReplica = rep break end 
                 end
                 
-                -- CHECK HATS
                 if getgenv().WebhookHats and PlayerReplica and PlayerReplica.Data.Hats then
                     for id, hat in pairs(PlayerReplica.Data.Hats) do
                         if not KnownHats[id] then
@@ -448,7 +549,6 @@ task.spawn(function()
                                 for name, mapId in pairs(RarityMap) do if mapId == RarityID then RarityName = name break end end
                                 
                                 local Name = Info.DisplayName or Info.Name or "Hat"
-                                -- VERIFICA APENAS NA LISTA DE CHAPÉUS
                                 if getgenv().WebhookHatRarities[RarityName] then
                                     SendWebhook(Name, RarityName, "Hat")
                                 end
@@ -457,7 +557,6 @@ task.spawn(function()
                     end
                 end
 
-                -- CHECK PETS
                 if getgenv().WebhookPets and PlayerReplica and PlayerReplica.Data.Pets then
                     for id, pet in pairs(PlayerReplica.Data.Pets) do
                         if not KnownPets[id] then
@@ -469,7 +568,6 @@ task.spawn(function()
                                 for name, mapId in pairs(RarityMap) do if mapId == RarityID then RarityName = name break end end
                                 
                                 local Name = Info.DisplayName or Info.Name or "Pet"
-                                -- VERIFICA APENAS NA LISTA DE PETS
                                 if getgenv().WebhookPetRarities[RarityName] then
                                     SendWebhook(Name, RarityName, "Pet")
                                 end
@@ -486,7 +584,6 @@ end)
 -- AUTO EQUIP (FULL LIST SEND - HATS & PETS)
 -- ============================================================================
 
--- [HATS]
 task.spawn(function()
     while true do task.wait(5)
         if getgenv().AutoEquipEnabled then
@@ -514,7 +611,6 @@ task.spawn(function()
     end
 end)
 
--- [PETS]
 task.spawn(function()
     while true do task.wait(5)
         if getgenv().AutoEquipPets then
@@ -574,7 +670,6 @@ task.spawn(function()
     end
 end)
 
--- [ANIM KILLER - SAFE VERSION]
 task.spawn(function() 
     pcall(function() 
         local function Kill(self) 
@@ -582,7 +677,6 @@ task.spawn(function()
                 self.Model:Destroy() 
             end 
         end
-        
         local BoxAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Box")
         local GiftAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Gift")
         local GhostAnim = game.ReplicatedStorage.Modules.BoxAnimations:FindFirstChild("Ghost")
